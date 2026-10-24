@@ -56,14 +56,15 @@ python -m price_agent "Sony WH-1000XM5" --country US --limit 3
 ## What the numbers mean
 
 - **Prices are snapshots.** Each price shows `meta.as_of`, the time DataWebot retrieved it. Check it before you
-  rely on a price. DataWebot's documentation says prices may be out of date.
+  rely on a price. DataWebot's search results describe prices as best-effort and possibly out of date.
 - **Least price** is the lowest seller total across all products. The total is the seller's stated total with
   shipping, or the price plus known shipping when only the shipping is stated. Unknown shipping counts as zero.
 - **Best reviewed** is the highest rating adjusted for review count: `(n × rating + 20 × 4.0) / (n + 20)`.
   Products without a rating or review count are left out.
 - **Sentiment** is VADER on the few review texts DataWebot returns, unless the product also has a star
-  breakdown. DataWebot's public documentation doesn't list a star breakdown. The live offers replies in our
-  runs have included one for some products, so the agent uses it when present and says which source it used.
+  breakdown. DataWebot's `get_product_offers` description mentions an overall rating and breakdown, and the live
+  replies in our runs included a star-count breakdown for some products. The public setup guide doesn't describe
+  its format, so the agent uses it when present and says which source it used.
   Good means 4 or 5 stars and bad means 1 or 2 stars.
 - **Daily allowance.** DataWebot's public documentation says each account has a daily allowance, without a
   size. The agent doesn't assume one. Each search and each offers call reduces `meta.searches_left_today`,
