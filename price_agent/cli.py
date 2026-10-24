@@ -5,19 +5,22 @@ from __future__ import annotations
 import argparse
 import re
 import sys
+from datetime import datetime, timezone
 
 from . import pick
 from .agent import Report, research
 from .datawebot import DataWebotClient, DataWebotError, load_api_key
 from .models import Offer, Product
 
+NOTICE = (
+    "These are DataWebot snapshots, not live prices. Each price shows when it was retrieved.\n"
+    "Sentiment is VADER on the few review texts DataWebot returns, unless it also returns a star breakdown "
+    "for that product (shown per product)."
+)
+
 
 def format_report(report: Report) -> str:
-    lines = [
-        f'Results for "{report.query}" in {report.country} (as of {report.as_of or "unknown"}).',
-        "Prices are best-effort and may be out of date.",
-        "",
-    ]
+    lines = [f'Results for "{report.query}" in {report.country}.', NOTICE, ""]
     if not report.products:
         lines.append("No product with seller offers was found for this search.")
     for product in report.products:
@@ -26,13 +29,16 @@ def format_report(report: Report) -> str:
     least = report.least_price()
     if least:
         product, offer = least
-        lines.append(f"Least price: {_money(offer.total, offer.currency)} at {offer.shop} for {product.title}")
+        lines.append(
+            f"Least price: {_money(offer.total, offer.currency)} at {offer.shop} for {product.title} "
+            f"(retrieved {_when(product.as_of)})"
+        )
     best = report.best_reviewed()
     if best:
         adjusted = pick.bayesian_rating(best.rating, best.rating_count)
         lines.append(
             f"Best reviewed: {best.title} (rating {best.rating:.1f} from {best.rating_count} reviews, "
-            f"adjusted {adjusted:.2f})"
+            f"adjusted {adjusted:.2f}; retrieved {_when(best.as_of)})"
         )
     if report.without_offers:
         lines.append(f"{report.without_offers} search result(s) had no seller offers and were skipped.")
@@ -47,7 +53,7 @@ def _product_lines(product: Product) -> list[str]:
     lines = [product.title]
     offer = product.cheapest()
     if offer:
-        lines.append(f"  Lowest seller: {_money(offer.total, offer.currency)} at {offer.shop}")
+        lines.append(f"  Lowest seller: {_money(offer.total, offer.currency)} at {offer.shop} (retrieved {_when(product.as_of)})")
         if offer.url:
             lines.append(f"  {offer.url}")
     else:
@@ -63,7 +69,7 @@ def _sentiment_line(product: Product) -> str:
         return f"  Star breakdown: good {product.good}, neutral {product.neutral}, bad {product.bad}"
     if product.sentiment_source == "sample":
         return (
-            f"  Review sample ({len(product.review_texts)} texts, VADER): "
+            f"  VADER on {len(product.review_texts)} review text(s): "
             f"good {product.good}, neutral {product.neutral}, bad {product.bad}"
         )
     return "  No star breakdown or review text to score."
@@ -71,6 +77,17 @@ def _sentiment_line(product: Product) -> str:
 
 def _money(amount: float, currency: str | None) -> str:
     return f"{amount:.2f} {currency}" if currency else f"{amount:.2f}"
+
+
+def _when(as_of: str | None) -> str:
+    """Format DataWebot's meta.as_of (ISO 8601, UTC) for people to read."""
+    if not as_of:
+        return "time not reported"
+    try:
+        moment = datetime.fromisoformat(as_of.replace("Z", "+00:00"))
+    except ValueError:
+        return as_of
+    return moment.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
 
 def main(argv: list[str] | None = None) -> int:

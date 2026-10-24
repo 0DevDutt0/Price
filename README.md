@@ -1,20 +1,47 @@
 # Price research agent
 
-Compares sellers, prices and review sentiment for one product. The main data source is
-DataWebot's `search_products` and `get_product_offers`. The core path is free: it uses only the
-daily search allowance, not the paid Jobs credits.
+Compares sellers, prices and review sentiment for one product. It uses DataWebot's
+`search_products` and `get_product_offers` tools. It does not use Jobs, which cost credits.
+
+## Sample run
+
+Real output from 2026-10-24, with `python -m price_agent "Apple AirPods Pro 2" --limit 2`:
+
+```
+Results for "Apple AirPods Pro 2" in US.
+These are DataWebot snapshots, not live prices. Each price shows when it was retrieved.
+Sentiment is VADER on the few review texts DataWebot returns, unless it also returns a star breakdown for that product (shown per product).
+
+Apple AirPods Pro with MagSafe Case
+  Lowest seller: 35.00 USD at bkstr.com (retrieved 2026-10-24 12:30 UTC)
+  https://www.bkstr.com/tcatknoxvillestore/product/airpods-pro--2nd-generation--with-magsafe-case--usb-c--364639-1
+  Rating 4.3 from 14913 reviews
+  Star breakdown: good 12185, neutral 434, bad 2294
+
+Apple AirPods Pro (2nd Generation) with MagSafe Case (usbc), White
+  Lowest seller: 139.99 USD at Walmart - Cellfeee (retrieved 2026-10-24 12:30 UTC)
+  https://www.walmart.com/ip/Apple-AirPods-Pro-2nd-Gen-with-MagSafe-USB-C-Charging-Case/15509659574?wmlspartner=wlpa&selectedSellerId=3652&veh=seo_fpl&cn=google
+  No star breakdown or review text to score.
+
+Least price: 35.00 USD at bkstr.com for Apple AirPods Pro with MagSafe Case (retrieved 2026-10-24 12:30 UTC)
+Best reviewed: Apple AirPods Pro with MagSafe Case (rating 4.3 from 14913 reviews, adjusted 4.30; retrieved 2026-10-24 12:30 UTC)
+Searches left today: 31
+```
+
+The second product has no rating or reviews in this reply, so the agent reports that it has nothing to score.
 
 ## Setup
 
-Use the venv in `E:\Price\Price` (or create your own) and install the requirements:
+Install the requirements into a virtual environment:
 
 ```
-E:\Price\Price\Scripts\python.exe -m pip install -r requirements-dev.txt
+python -m venv .venv
+.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
 ```
 
-DataWebot sign-in saves a key to `%USERPROFILE%\.datawebot\credentials`. To use another key, set
-`DATAWEBOT_API_KEY`. Keys last 30 days according to DataWebot's setup guide, so sign in again when
-the agent reports `login_required`. Never commit the key or the credentials file.
+The agent needs a DataWebot key. Either set `DATAWEBOT_API_KEY`, or sign in to DataWebot so the key is saved to
+`%USERPROFILE%\.datawebot\credentials`. Never commit the key or that folder. DataWebot's setup guide says keys
+last 30 days. When the agent reports `login_required`, sign in again.
 
 ## Usage
 
@@ -23,18 +50,27 @@ python -m price_agent "Apple AirPods Pro 2"
 python -m price_agent "Sony WH-1000XM5" --country US --limit 3
 ```
 
-- `--limit` is how many search results to open for sellers. Each one costs one daily unit, plus the
-  search itself. The default is 3, so one run uses up to 4 units of the 50-unit daily allowance.
-- The output lists each product's lowest seller total (price plus shipping when the seller states
-  it), its rating, and good, neutral and bad counts. It ends with two picks:
-  - **Least price:** the lowest seller total across all products.
-  - **Best reviewed:** the highest rating adjusted for review count, `(n × rating + 20 × 4.0) / (n + 20)`.
-    Products without a rating or a review count are left out.
-- Sentiment comes from DataWebot's star breakdown when it is present (4 and 5 stars count as good,
-  1 and 2 as bad). Otherwise the few review texts are labelled with VADER, and the report says it is a
-  sample.
+- `--country` takes a two-letter market code. The default is `US`.
+- `--limit` is how many search results to open for sellers. The default is 3.
 
-Prices are best-effort and may be out of date.
+## What the numbers mean
+
+- **Prices are snapshots.** Each price shows `meta.as_of`, the time DataWebot retrieved it. Check it before you
+  rely on a price. DataWebot's documentation says prices may be out of date.
+- **Least price** is the lowest seller total across all products. The total is the seller's stated total with
+  shipping, or the price plus known shipping when only the shipping is stated. Unknown shipping counts as zero.
+- **Best reviewed** is the highest rating adjusted for review count: `(n × rating + 20 × 4.0) / (n + 20)`.
+  Products without a rating or review count are left out.
+- **Sentiment** is VADER on the few review texts DataWebot returns, unless the product also has a star
+  breakdown. DataWebot's public documentation doesn't list a star breakdown. The live offers replies in our
+  runs have included one for some products, so the agent uses it when present and says which source it used.
+  Good means 4 or 5 stars and bad means 1 or 2 stars.
+- **Daily allowance.** DataWebot's public documentation says each account has a daily allowance, without a
+  size. The agent doesn't assume one. Each search and each offers call reduces `meta.searches_left_today`,
+  which the report prints. In our runs each call reduced it by exactly one.
+- **Errors.** `login_required` means sign in again. `rate_limited` means the daily allowance is used up or
+  DataWebot is limiting the account, so try later. The agent stops on these and on network errors.
+  `insufficient_credits` only applies to Jobs, which this agent does not use.
 
 ## Tests
 
@@ -42,7 +78,7 @@ Prices are best-effort and may be out of date.
 python -m pytest
 ```
 
-The tests use mocked HTTP and fake clients, so they use no daily units.
+The tests use mocked HTTP and fake clients, so they use no daily allowance.
 
 ## Layout
 
@@ -50,13 +86,13 @@ The tests use mocked HTTP and fake clients, so they use no daily units.
 |---|---|
 | `price_agent/datawebot.py` | JSON-RPC client for `https://mcp.datawebot.com/mcp`, key loading, error codes |
 | `price_agent/agent.py` | One research pass: search, then offers for the top results |
-| `price_agent/pick.py` | Sellers, totals, sentiment counts and the two picks |
+| `price_agent/pick.py` | Number parsing, sellers and totals, sentiment counts, the two picks |
 | `price_agent/cli.py` | Command line and report formatting |
-| `price_agent/extract.py`, `models.py`, `sentiment.py` | Direct page reading (JSON-LD and Open Graph), data classes, VADER labels |
+| `price_agent/models.py` | Offer and product data classes |
+| `price_agent/sentiment.py` | VADER labels for review text |
 
-## Not built yet
+## Not included
 
-- Product links as input. The plan is to read the page title for free first, then search by that title.
-- Direct page reading as a fallback when DataWebot returns nothing. `extract.py` is written but not yet
-  wired into the CLI, and robots.txt checks are not written.
-- Jobs (scraping). They cost credits and are avoided in the core.
+- **Reading product pages directly.** This repo doesn't read shop pages. DataWebot is the only data source.
+- **Jobs.** They cost credits. The agent doesn't submit them.
+- **Product links as input.** Only search terms are accepted for now.

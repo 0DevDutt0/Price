@@ -15,7 +15,7 @@ def offers_reply(product_id, searches_left):
             "offers": [{"shop": "shop.example", "price": 20, "total_text": "$20.00", "currency": "USD"}],
             "reviews": [],
         },
-        "meta": {"searches_left_today": searches_left},
+        "meta": {"searches_left_today": searches_left, "as_of": f"time-{product_id}"},
     }
 
 
@@ -49,7 +49,11 @@ def test_searches_left_comes_from_the_latest_reply():
     client = FakeClient([search_item("a")], searches_left=30)
     report = research(client, "kettle", limit=1)
     assert report.searches_left == 29
-    assert report.as_of == "t0"
+
+
+def test_each_product_keeps_the_retrieval_time_of_its_offers_reply():
+    report = research(FakeClient([search_item("a"), search_item("b")]), "kettle", limit=2)
+    assert [p.as_of for p in report.products] == ["time-a", "time-b"]
 
 
 def test_a_product_error_is_recorded_and_the_run_continues():

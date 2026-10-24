@@ -1,27 +1,8 @@
-"""The data the agent collects for one product link."""
+"""Data classes for DataWebot search and offers results."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-
-
-@dataclass
-class Listing:
-    url: str
-    status: str = "pending"  # ok, no_price, no_product, robots_disallowed, fetch_failed, invalid_url
-    source: str = ""  # cache, http or browser
-    name: str | None = None
-    shop: str | None = None
-    currency: str | None = None
-    price: float | None = None
-    availability: str | None = None
-    rating: float | None = None  # always on a 0-5 scale
-    rating_count: int | None = None
-    review_texts: list[str] = field(default_factory=list)
-    good: int | None = None  # None means the page exposed no review text to score
-    bad: int | None = None
-    neutral: int | None = None
-    notes: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -50,6 +31,7 @@ class Product:
     bad: int | None = None
     neutral: int | None = None
     sentiment_source: str | None = None  # "stars" = DataWebot's star breakdown, "sample" = VADER on review texts
+    as_of: str | None = None  # when DataWebot retrieved these offers (meta.as_of); prices are snapshots, not live
 
     def cheapest(self) -> Offer | None:
         return min(self.offers, key=lambda offer: offer.total, default=None)

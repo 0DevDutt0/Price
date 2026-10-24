@@ -2,14 +2,38 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from . import sentiment
-from .extract import parse_number
 from .models import Offer, Product
 
 PRIOR_MEAN = 4.0  # rating assumed for a product before its reviews are counted
 PRIOR_WEIGHT = 20  # how many reviews that assumed rating is worth
+
+
+def parse_number(value: Any) -> float | None:
+    """Read a price or rating such as 1299, "1,299.00", "1.299,00" or "US$ 49.90"."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    if not isinstance(value, str):
+        return None
+    text = re.sub(r"[^0-9.,-]", "", value)
+    if not re.search(r"\d", text):
+        return None
+    if "," in text and "." in text:
+        if text.rfind(",") > text.rfind("."):  # 1.299,00: dots group thousands, the comma is the decimal mark
+            text = text.replace(".", "").replace(",", ".")
+        else:  # 1,299.00
+            text = text.replace(",", "")
+    elif "," in text:  # 12,50 is a decimal comma; 1,299 is a thousands separator
+        text = text.replace(",", ".") if re.search(r",\d{1,2}$", text) else text.replace(",", "")
+    try:
+        return float(text)
+    except ValueError:
+        return None
 
 
 def offer_from_reply(raw: dict[str, Any]) -> Offer | None:
@@ -42,7 +66,9 @@ def count_stars(breakdown: list[dict[str, Any]] | None) -> dict[int, int]:
     return counts
 
 
-def product_from_replies(search_item: dict[str, Any], offers_data: dict[str, Any]) -> Product:
+def product_from_replies(
+    search_item: dict[str, Any], offers_data: dict[str, Any], as_of: str | None = None
+) -> Product:
     """Combine one search row with its get_product_offers data. Offers data wins where both have a value."""
     info = offers_data.get("product") or {}
     rating = info.get("rating") if info.get("rating") is not None else search_item.get("rating")
@@ -55,6 +81,7 @@ def product_from_replies(search_item: dict[str, Any], offers_data: dict[str, Any
         rating_count=int(count) if count is not None else None,
         offers=[offer for offer in map(offer_from_reply, offers_data.get("offers") or []) if offer],
         review_texts=review_texts,
+        as_of=as_of,
     )
     stars = count_stars(info.get("rating_breakdown"))
     if stars:

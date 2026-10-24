@@ -20,8 +20,7 @@ class Report:
     products: list[Product] = field(default_factory=list)
     without_offers: int = 0  # search results DataWebot could not give sellers for
     skipped: list[str] = field(default_factory=list)  # products whose offers call failed
-    searches_left: int | None = None
-    as_of: str | None = None
+    searches_left: int | None = None  # meta.searches_left_today from the latest reply
 
     def least_price(self) -> tuple[Product, Offer] | None:
         return pick.least_price(self.products)
@@ -34,7 +33,7 @@ def research(client: DataWebotClient, query: str, country: str = "US", limit: in
     """Each opened result costs one unit of the daily allowance, so limit is the budget for sellers."""
     search = client.search_products(query, country=country, limit=limit)
     report = Report(query=query, country=country)
-    _note_meta(report, search)
+    _note_searches_left(report, search)
     results = (search.get("data") or {}).get("results") or []
     listed = [item for item in results if item.get("has_offers")]
     report.without_offers = len(results) - len(listed)
@@ -46,12 +45,12 @@ def research(client: DataWebotClient, query: str, country: str = "US", limit: in
                 raise
             report.skipped.append(f"{item.get('title', 'untitled')}: {error}")
             continue
-        _note_meta(report, offers)
-        report.products.append(pick.product_from_replies(item, offers.get("data") or {}))
+        _note_searches_left(report, offers)
+        as_of = (offers.get("meta") or {}).get("as_of")
+        report.products.append(pick.product_from_replies(item, offers.get("data") or {}, as_of=as_of))
     return report
 
 
-def _note_meta(report: Report, reply: dict[str, Any]) -> None:
+def _note_searches_left(report: Report, reply: dict[str, Any]) -> None:
     meta = reply.get("meta") or {}
     report.searches_left = meta.get("searches_left_today", report.searches_left)
-    report.as_of = meta.get("as_of", report.as_of)

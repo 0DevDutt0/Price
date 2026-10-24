@@ -111,3 +111,26 @@ def test_network_failure_is_reported():
         with pytest.raises(DataWebotError) as info:
             client.search_products("abc")
     assert info.value.code == "network_error"
+
+
+def test_rate_limited_is_recognised_by_name_even_without_a_429_status():
+    with _client(lambda request: httpx.Response(500, text='{"error": "rate_limited"}')) as client:
+        with pytest.raises(DataWebotError) as info:
+            client.search_products("abc")
+    assert info.value.code == "rate_limited"
+
+
+def test_rate_limited_inside_a_tool_error_is_recognised():
+    reply = {"jsonrpc": "2.0", "id": 1, "result": {"content": [{"type": "text", "text": "rate_limited: try tomorrow"}], "isError": True}}
+    with _client(lambda request: httpx.Response(200, json=reply)) as client:
+        with pytest.raises(DataWebotError) as info:
+            client.search_products("abc")
+    assert info.value.code == "rate_limited"
+
+
+def test_login_required_inside_a_json_rpc_error_is_recognised():
+    handler = lambda request: httpx.Response(200, json={"jsonrpc": "2.0", "id": 1, "error": {"code": -32000, "message": "login_required"}})
+    with _client(handler) as client:
+        with pytest.raises(DataWebotError) as info:
+            client.search_products("abc")
+    assert info.value.code == "login_required"

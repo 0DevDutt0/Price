@@ -112,3 +112,20 @@ def test_without_any_breakdown_or_text_nothing_is_scored():
     found = pick.product_from_replies({"product_id": "1", "title": "Kettle"}, {"product": {}, "offers": [], "reviews": []})
     assert found.sentiment_source is None
     assert found.good is None
+
+
+def test_offers_retrieval_time_is_kept_on_the_product():
+    found = pick.product_from_replies(
+        {"product_id": "1", "title": "Kettle"},
+        {"product": {}, "offers": [], "reviews": []},
+        as_of="2026-10-24T12:09:34.967Z",
+    )
+    assert found.as_of == "2026-10-24T12:09:34.967Z"
+
+
+@pytest.mark.parametrize(
+    "value, expected",
+    [("1.299,00", 1299.0), ("1,299.00", 1299.0), ("12,50", 12.5), ("US$ 49.90", 49.9), (True, None), ("", None)],
+)
+def test_parse_number_reads_both_separator_styles(value, expected):
+    assert pick.parse_number(value) == (pytest.approx(expected) if expected is not None else None)
