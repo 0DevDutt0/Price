@@ -1,4 +1,4 @@
-"""One research pass: search DataWebot, open sellers for the top results, then pick."""
+"""One research pass: search datawebot, open sellers for the top results, then pick."""
 
 from __future__ import annotations
 
@@ -18,7 +18,8 @@ class Report:
     query: str
     country: str
     products: list[Product] = field(default_factory=list)
-    without_offers: int = 0  # search results DataWebot could not give sellers for
+    searched_at: str | None = None  # meta.as_of from the search reply
+    without_offers: int = 0  # search results datawebot could not give sellers for
     skipped: list[str] = field(default_factory=list)  # products whose offers call failed
     searches_left: int | None = None  # meta.searches_left_today from the latest reply
 
@@ -30,9 +31,9 @@ class Report:
 
 
 def research(client: DataWebotClient, query: str, country: str = "US", limit: int = 3) -> Report:
-    """Each opened result costs one unit of the daily allowance, so limit is the budget for sellers."""
+    """Each opened result is one more call against today's search allowance, so limit caps the seller lookups."""
     search = client.search_products(query, country=country, limit=limit)
-    report = Report(query=query, country=country)
+    report = Report(query=query, country=country, searched_at=(search.get("meta") or {}).get("as_of"))
     _note_searches_left(report, search)
     results = (search.get("data") or {}).get("results") or []
     listed = [item for item in results if item.get("has_offers")]

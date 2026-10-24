@@ -3,7 +3,7 @@ import json
 import httpx
 import pytest
 
-from price_agent.datawebot import DataWebotClient, DataWebotError, load_api_key
+from price_agent.datawebot import ENDPOINT, DataWebotClient, DataWebotError, load_api_key
 
 
 def _reply(payload):
@@ -134,3 +134,20 @@ def test_login_required_inside_a_json_rpc_error_is_recognised():
         with pytest.raises(DataWebotError) as info:
             client.search_products("abc")
     assert info.value.code == "login_required"
+
+
+def test_error_messages_say_what_to_do():
+    with _client(lambda request: httpx.Response(401, text="no")) as client:
+        with pytest.raises(DataWebotError) as login:
+            client.search_products("abc")
+    assert "The key is missing or has expired" in str(login.value)
+    assert "Sign in to datawebot again" in str(login.value)
+    with _client(lambda request: httpx.Response(429, text="no")) as client:
+        with pytest.raises(DataWebotError) as limited:
+            client.search_products("abc")
+    assert "try again tomorrow" in str(limited.value)
+
+
+def test_real_http_is_blocked_in_tests():
+    with pytest.raises(RuntimeError):
+        httpx.Client().get(ENDPOINT)

@@ -13,14 +13,15 @@ from .datawebot import DataWebotClient, DataWebotError, load_api_key
 from .models import Offer, Product
 
 NOTICE = (
-    "These are DataWebot snapshots, not live prices. Each price shows when it was retrieved.\n"
-    "Sentiment is VADER on the few review texts DataWebot returns, unless it also returns a star breakdown "
+    "These are datawebot snapshots, not live prices. Each price shows when it was retrieved.\n"
+    "Sentiment is VADER on the few review texts datawebot returns, unless it also returns a star breakdown "
     "for that product (shown per product)."
 )
 
 
 def format_report(report: Report) -> str:
-    lines = [f'Results for "{report.query}" in {report.country}.', NOTICE, ""]
+    header = f'Results for "{report.query}" in {report.country}, search retrieved {_when(report.searched_at)}.'
+    lines = [header, NOTICE, ""]
     if not report.products:
         lines.append("No product with seller offers was found for this search.")
     for product in report.products:
@@ -53,7 +54,10 @@ def _product_lines(product: Product) -> list[str]:
     lines = [product.title]
     offer = product.cheapest()
     if offer:
-        lines.append(f"  Lowest seller: {_money(offer.total, offer.currency)} at {offer.shop} (retrieved {_when(product.as_of)})")
+        lines.append(
+            f"  Lowest seller: {_money(offer.total, offer.currency)} at {offer.shop} "
+            f"(retrieved {_when(product.as_of)})"
+        )
         if offer.url:
             lines.append(f"  {offer.url}")
     else:
@@ -80,7 +84,7 @@ def _money(amount: float, currency: str | None) -> str:
 
 
 def _when(as_of: str | None) -> str:
-    """Format DataWebot's meta.as_of (ISO 8601, UTC) for people to read."""
+    """Format datawebot's meta.as_of (ISO 8601, UTC) for people to read."""
     if not as_of:
         return "time not reported"
     try:
@@ -96,7 +100,7 @@ def main(argv: list[str] | None = None) -> int:
         sys.stdout.reconfigure(errors="replace")
     parser = argparse.ArgumentParser(
         prog="python -m price_agent",
-        description="Compare sellers, prices and review sentiment for one product, using DataWebot.",
+        description="Compare sellers, prices and review sentiment for one product, using datawebot.",
     )
     parser.add_argument("query", help='What to look for, for example "Sony WH-1000XM5".')
     parser.add_argument("--country", default="US", help="Two-letter market code (default: US).")
@@ -104,7 +108,7 @@ def main(argv: list[str] | None = None) -> int:
         "--limit",
         type=int,
         default=3,
-        help="Search results to open for sellers (default: 3). Each opened result uses one daily unit.",
+        help="Search results to open for sellers (default: 3). Each one is an extra call against today's search allowance.",
     )
     args = parser.parse_args(argv)
     query = args.query.strip()
@@ -119,7 +123,7 @@ def main(argv: list[str] | None = None) -> int:
         with DataWebotClient(load_api_key()) as client:
             report = research(client, query, country=country, limit=args.limit)
     except DataWebotError as error:
-        print(f"DataWebot error ({error.code}): {error}", file=sys.stderr)
+        print(f"Error ({error.code}): {error}", file=sys.stderr)
         return 1
     print(format_report(report))
     return 0

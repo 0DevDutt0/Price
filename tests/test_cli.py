@@ -1,7 +1,9 @@
 import pytest
 
+from price_agent import cli
 from price_agent.agent import Report
 from price_agent.cli import NOTICE, format_report, main
+from price_agent.datawebot import DataWebotError
 from price_agent.models import Offer, Product
 
 
@@ -25,6 +27,11 @@ def test_report_shows_snapshot_times_sentiment_and_both_picks():
     assert "Least price: 25.00 USD at shop.example for Test Kettle (retrieved 2026-10-24 12:09 UTC)" in text
     assert "Best reviewed: Test Kettle" in text
     assert "Searches left today: 12" in text
+
+
+def test_header_shows_when_the_search_ran():
+    text = format_report(Report(query="kettle", country="US", searched_at="2026-10-24T12:00:00Z"))
+    assert 'Results for "kettle" in US, search retrieved 2026-10-24 12:00 UTC.' in text
 
 
 def test_sample_sentiment_is_labelled_as_vader():
@@ -56,3 +63,12 @@ def test_invalid_country_is_rejected(capsys):
     with pytest.raises(SystemExit):
         main(["kettle", "--country", "USA"])
     assert "two-letter code" in capsys.readouterr().err
+
+
+def test_a_datawebot_error_prints_its_code_and_exits_with_1(monkeypatch, capsys):
+    def rejected_key():
+        raise DataWebotError("login_required", "Sign in to datawebot again. The key was rejected.")
+
+    monkeypatch.setattr(cli, "load_api_key", rejected_key)
+    assert main(["kettle"]) == 1
+    assert "Error (login_required): Sign in to datawebot again." in capsys.readouterr().err

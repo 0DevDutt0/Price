@@ -56,6 +56,11 @@ def test_each_product_keeps_the_retrieval_time_of_its_offers_reply():
     assert [p.as_of for p in report.products] == ["time-a", "time-b"]
 
 
+def test_the_search_time_is_kept_on_the_report():
+    report = research(FakeClient([search_item("a")]), "kettle", limit=1)
+    assert report.searched_at == "t0"
+
+
 def test_a_product_error_is_recorded_and_the_run_continues():
     client = FakeClient(
         [search_item("a"), search_item("b")],

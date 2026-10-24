@@ -1,4 +1,4 @@
-"""A small client for the DataWebot MCP server: JSON-RPC over HTTP, as its setup guide describes."""
+"""A small client for the datawebot MCP server: JSON-RPC over HTTP, as its setup guide describes."""
 
 from __future__ import annotations
 
@@ -17,14 +17,15 @@ KEY_ENV_VAR = "DATAWEBOT_API_KEY"  # takes precedence over the saved credentials
 USER_AGENT = "price-agent/0.1"
 TIMEOUT_SECONDS = 60
 
-# Error names from DataWebot's setup guide. The guide gives HTTP 401 for login_required and 402 for
+# Error names from the datawebot setup guide. The guide gives HTTP 401 for login_required and 402 for
 # insufficient_credits, and no status for rate_limited. So the name is also looked for in the reply text.
 NAMED_ERRORS = ("login_required", "rate_limited", "insufficient_credits")
 STATUS_ERRORS = {401: "login_required", 402: "insufficient_credits", 429: "rate_limited"}  # 429 is an assumption
 MESSAGES = {
-    "login_required": "DataWebot rejected the key. Sign in again.",
-    "rate_limited": "DataWebot is limiting this account, probably because the daily search allowance is used up. Try again later.",
-    "insufficient_credits": "DataWebot reports insufficient credits. This agent does not use Jobs.",
+    "login_required": "The key is missing or has expired. Sign in to datawebot again.",
+    "rate_limited": "This account is rate limited on datawebot, so try again tomorrow. "
+    "The daily search allowance may be used up.",
+    "insufficient_credits": "This account has too few datawebot credits. This agent does not use Jobs.",
 }
 
 
@@ -35,7 +36,7 @@ class DataWebotError(Exception):
 
 
 def load_api_key(env: Mapping[str, str] | None = None, path: Path = CREDENTIALS_PATH) -> str:
-    """Return the key from the environment, or from the profile saved by DataWebot's sign-in."""
+    """Return the key from the environment, or from the profile saved by datawebot's sign-in."""
     key = (os.environ if env is None else env).get(KEY_ENV_VAR)
     if key:
         return key.strip()
@@ -44,7 +45,7 @@ def load_api_key(env: Mapping[str, str] | None = None, path: Path = CREDENTIALS_
         return saved["profiles"][SERVER]["api_key"]
     except (OSError, ValueError, KeyError, TypeError) as error:
         raise DataWebotError(
-            "no_key", f"No DataWebot key in {KEY_ENV_VAR} or {path}. Sign in to DataWebot first."
+            "no_key", f"No datawebot key in {KEY_ENV_VAR} or {path}. Sign in to datawebot first."
         ) from error
 
 
@@ -79,7 +80,7 @@ class DataWebotClient:
         try:
             response = self._http.post(ENDPOINT, json=body, headers=self._headers)
         except httpx.HTTPError as error:
-            raise DataWebotError("network_error", f"could not reach DataWebot ({type(error).__name__})") from error
+            raise DataWebotError("network_error", f"could not reach datawebot ({type(error).__name__})") from error
         if response.status_code != 200:
             raise _status_error(response.status_code, response.text)
         try:
@@ -95,7 +96,7 @@ def _named_error(text: str) -> str | None:
 
 def _status_error(status: int, body: str) -> DataWebotError:
     code = _named_error(body) or STATUS_ERRORS.get(status) or f"http_{status}"
-    return DataWebotError(code, MESSAGES.get(code, f"DataWebot returned HTTP {status}."))
+    return DataWebotError(code, MESSAGES.get(code, f"The request to datawebot returned HTTP {status}."))
 
 
 def _reply_error(default_code: str, name: str, detail: str) -> DataWebotError:

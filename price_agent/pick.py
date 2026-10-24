@@ -1,4 +1,4 @@
-"""Turn DataWebot replies into products with sellers, sentiment counts and the two picks."""
+"""Turn datawebot replies into products with sellers, sentiment counts and the two picks."""
 
 from __future__ import annotations
 
@@ -57,7 +57,7 @@ def offer_from_reply(raw: dict[str, Any]) -> Offer | None:
 
 
 def count_stars(breakdown: list[dict[str, Any]] | None) -> dict[int, int]:
-    """DataWebot's rating_breakdown, a list of {"stars": 1-5, "count": n}, as {stars: count}."""
+    """datawebot's rating_breakdown, a list of {"stars": 1-5, "count": n}, as {stars: count}."""
     counts: dict[int, int] = {}
     for row in breakdown or []:
         stars, count = row.get("stars"), row.get("count")

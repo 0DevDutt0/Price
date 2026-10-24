@@ -1,1 +1,1 @@
-"""Price and review research agent built on DataWebot's search and seller offers."""
+"""Price and review research agent built on datawebot's search and seller offers."""
