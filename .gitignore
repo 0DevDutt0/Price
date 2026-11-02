@@ -1,0 +1,11 @@
+/Price/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.playwright-mcp/
+.env
+.env.*
+!.env.example
+.datawebot/
+credentials
