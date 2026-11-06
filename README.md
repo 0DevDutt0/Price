@@ -1,187 +1,158 @@
 # Price
 
-**An explainable product research agent built with Python and DataWebot MCP.**
+**A Python product research tool powered by DataWebot MCP.**
 
-Price explores how ecommerce data retrieved through DataWebot can be transformed into useful, transparent product comparisons. It searches products across online shops, retrieves seller offers, compares available prices, evaluates review ratings and summarizes review sentiment.
+Price searches for products across online stores, collects available seller offers and helps compare prices, ratings and customer reviews in one place.
 
-The project focuses on practical engineering: MCP integration, structured data processing, deterministic recommendation logic, API error handling and automated testing.
+I built this project to explore how MCP can be used in a real application. Rather than simply calling an external tool and displaying its response, I wanted to take the returned ecommerce data, process it and turn it into something useful for comparing products.
 
-> **Independent developer project.** Built using DataWebot's MCP server. Not an official DataWebot product.
+> An independent developer project built using DataWebot. This is not an official DataWebot product.
 
-[DataWebot](https://datawebot.com/) · [MCP Documentation](https://datawebot.com/docs/agents) · [Repository](https://github.com/0DevDutt0/Price)
+[DataWebot](https://datawebot.com/) · [MCP Documentation](https://datawebot.com/docs/agents) · [GitHub Repository](https://github.com/0DevDutt0/Price)
 
 ---
 
-## Overview
+## What does it do?
 
-Finding a product at the lowest listed price is not necessarily the same as finding the best buying option.
+Given a product name, Price searches for matching products and retrieves the available seller information.
 
-Different sellers may have different prices, shipping charges, ratings and review histories. Product information can also be incomplete or inconsistent.
+It then:
 
-Price brings the available information into a single research report.
+- Searches for products using DataWebot's `search_products` tool.
+- Retrieves seller offers using `get_product_offers`.
+- Compares available seller prices and shipping information.
+- Finds the lowest reported offer.
+- Ranks products using their ratings and review counts.
+- Analyzes available customer reviews using rating distributions or VADER.
+- Displays seller links and retrieval timestamps alongside the results.
 
-### What it does
-
-- **Product discovery:** Searches ecommerce listings through DataWebot's `search_products` MCP tool.
-- **Seller comparison:** Retrieves seller offers through `get_product_offers`.
-- **Price analysis:** Parses prices and compares seller totals when shipping information is available.
-- **Review ranking:** Uses a review-count-weighted rating to reduce the influence of products with very few reviews.
-- **Sentiment analysis:** Uses DataWebot's star-rating breakdown when available, otherwise applies VADER to returned review text.
-- **Retrieval transparency:** Reports when product and seller information was retrieved.
-- **Failure handling:** Handles authentication issues, rate limits, network failures and unsuccessful product lookups.
+The goal is to make product research easier while keeping the comparison logic transparent.
 
 ## How it works
 
-A research request follows a sequential workflow:
+The application follows a fairly straightforward workflow:
 
 ```mermaid
 flowchart TD
-    A["Product Query"] --> B["DataWebot MCP Client"]
+    A["Product Search Query"] --> B["DataWebot MCP Client"]
     B --> C["search_products"]
-    C --> D["Filter Results with Seller Offers"]
+    C --> D["Filter Matching Products"]
     D --> E["get_product_offers"]
-    E --> F["Parse and Normalize Response Fields"]
-    F --> G["Structured Product and Offer Models"]
-    G --> H["Price Comparison"]
-    G --> I["Review Rating Analysis"]
-    G --> J["Sentiment Analysis"]
-    H --> K["Research Report"]
-    I --> K
-    J --> K
-    K --> L["CLI Output"]
+    E --> F["Parse Product and Seller Data"]
+    F --> G["Price Comparison"]
+    F --> H["Rating Analysis"]
+    F --> I["Review Sentiment"]
+    G --> J["Research Report"]
+    H --> J
+    I --> J
 ```
 
-### Execution flow
+### Research workflow
 
-1. The user supplies a product query, target country and result limit.
-2. The application sends a product-search request to DataWebot.
-3. Search results are filtered to identify products with available seller offers.
-4. Seller information is retrieved for up to the configured result limit.
-5. API responses are converted into structured Python dataclasses.
-6. Prices, review ratings and available sentiment information are processed.
-7. The application selects the lowest-priced seller offer and the best-reviewed product.
-8. A terminal report presents the findings, retrieval timestamps and any skipped results.
+1. Enter a product name and select a country.
+2. Price sends the search request to DataWebot.
+3. It filters the returned products to find those with available seller offers.
+4. It retrieves seller information for the selected products.
+5. The responses are converted into structured Python objects.
+6. Price and review information are processed using Python.
+7. The application identifies the cheapest offer and best-reviewed product.
+8. The results are displayed in the terminal.
 
-The orchestration is sequential and deterministic. It does not depend on an LLM to make purchasing recommendations.
+The workflow is sequential. Product ranking and comparison are handled through Python logic rather than an LLM.
 
 ## Technology stack
 
-| Technology | Role |
+| Technology | How it is used |
 |---|---|
-| Python | Application logic and orchestration |
-| DataWebot MCP | Ecommerce product discovery and seller data |
-| JSON-RPC 2.0 | MCP tool communication |
-| HTTPX | HTTP requests and transport |
-| Python dataclasses | Structured product and seller-offer models |
-| VADER | Rule-based review sentiment analysis |
+| Python | Main application and business logic |
+| DataWebot MCP | Product discovery and seller information |
+| HTTPX | HTTP communication |
+| JSON-RPC 2.0 | MCP request and response handling |
+| Dataclasses | Structured product and offer data |
+| VADER | Review sentiment analysis |
 | Pytest | Automated testing |
 
-The MCP client sends JSON-RPC 2.0 `tools/call` requests directly to DataWebot's remote MCP endpoint using HTTPX.
+I kept the implementation relatively lightweight and wrote a direct MCP client using HTTPX instead of introducing a larger agent framework. This keeps the external integration separate from the rest of the application and makes it easier to test.
 
-This implementation does not rely on LangChain, LangGraph or an LLM framework.
+## A closer look at the implementation
 
-## Engineering decisions
+### MCP integration
 
-### 1. Direct MCP integration
+Price communicates with DataWebot's remote MCP server using HTTPX and JSON-RPC 2.0.
 
-The application implements a small DataWebot client instead of introducing a larger agent framework.
+The client handles authentication, tool requests, response parsing, timeouts and API errors.
 
-It handles:
+I wanted to understand what happens behind a tool call, so I kept the communication layer explicit rather than hiding it behind an additional framework.
 
-- JSON-RPC 2.0 request construction.
-- HTTP communication with the remote MCP endpoint.
-- Bearer-token authentication.
-- Response parsing and error handling.
-- Explicit connection lifecycle management.
-- Configurable request timeouts.
+### Product and offer processing
 
-This keeps the integration relatively small and makes the external service boundary easy to test.
+External API responses are converted into Python dataclasses before being passed to the comparison logic.
 
-### 2. Structured product and offer models
+This keeps the provider-specific response handling separate from the actual product research.
 
-External API responses are converted into Python dataclasses.
+The application works with information such as:
 
-**Product**
-- Product identifier and title.
-- Available rating and review count.
-- Seller offers.
-- Review text and sentiment counts.
-- Retrieval timestamp.
-
-**Offer**
-- Seller or shop name.
-- Listed price and comparison total.
-- Currency.
-- Product URL.
+- Product names and identifiers.
+- Seller names and product links.
+- Listed prices and currencies.
 - Shipping information.
+- Ratings and review counts.
+- Available review text and sentiment information.
 
-This separates provider response parsing from recommendation and reporting logic.
+Only fields returned by the provider can be used in the comparison.
 
-### 3. Deterministic price comparison
+### Price comparison
 
-The application uses the seller's reported total when available. Otherwise, it attempts to calculate the comparison total from the listed price and known shipping information.
+The application compares seller offers using the reported total when available. Otherwise, it attempts to calculate a total from the product price and available shipping information.
 
-The lowest reported total is used to identify the cheapest offer.
+The seller with the lowest reported total is selected.
 
-Unknown shipping is currently treated as zero when no total is supplied. This is a known limitation and means the result should not be interpreted as a guaranteed final checkout price.
+There is one limitation worth mentioning: when shipping information is missing, the current implementation treats it as zero. This can affect the comparison, so the result should not be treated as a guaranteed checkout price.
 
-### 4. Review-count-weighted ranking
+### Review-based ranking
 
-A product with a perfect rating from a very small number of reviews should not automatically outrank a product with a slightly lower rating backed by many reviews.
+A product with a perfect rating from two reviews should not automatically rank above a product with a slightly lower rating supported by hundreds of reviews.
 
-Price uses the following adjustment:
+To account for this, Price uses a weighted rating formula:
 
-```math
-R_{adjusted} = \frac{nR + 20 \times 4.0}{n + 20}
-```
+$$
+R_{\text{adjusted}} =
+\frac{nR + 20(4.0)}{n+20}
+$$
 
 Where:
 
-- `R` is the product's average rating.
-- `n` is its review count.
+- `R` is the average product rating.
+- `n` is the number of reviews.
 - `4.0` is the assumed prior average.
-- `20` is the prior weight.
+- `20` is the weight assigned to the prior.
 
-This is a Bayesian-style ranking heuristic, not a trained recommendation model.
+This gives products with more review data a stronger influence on the ranking.
 
-Products without sufficient rating information are excluded from the best-reviewed selection.
+It is a simple Bayesian-style ranking approach, not a machine-learning model.
 
-### 5. Review sentiment
+### Review sentiment
 
-The application uses two sources of sentiment information:
+Price uses the review information returned by DataWebot.
 
-**Provider rating breakdown**
+When a star-rating breakdown is available, reviews are grouped into positive, neutral and negative categories.
 
-When DataWebot supplies a star-rating breakdown, reviews are grouped as:
+When that information is unavailable but review text is returned, VADER is used to classify the available text.
 
-- Good: 4 and 5 stars.
-- Neutral: 3 stars.
-- Bad: 1 and 2 stars.
+The two approaches serve as alternatives depending on the information available from the provider. VADER results represent the returned review sample, not every customer review.
 
-**VADER fallback**
-
-When a star breakdown is unavailable but review text is returned, VADER classifies the available text as positive, neutral or negative.
-
-The report identifies which source was used. VADER results represent the returned sample, not the sentiment of every customer review.
-
-### 6. Isolated error handling and testing
-
-The application uses structured application errors for authentication, rate limiting, network failures and malformed responses.
-
-Tests use mocked HTTP transports and fake clients. Real HTTP requests are blocked during testing, preventing accidental calls to DataWebot and consumption of the account's daily allowance.
-
-## Installation
+## Getting started
 
 ### Requirements
 
-- Python 3.9 or newer.
-- pip.
-- A DataWebot account and API key.
+- Python 3.9 or newer
+- pip
+- A DataWebot account and API key
 
 ### 1. Clone the repository
 
 ```bash
-git clone --branch datawebot-agent https://github.com/0DevDutt0/Price.git
+git clone https://github.com/0DevDutt0/Price.git
 cd Price
 ```
 
@@ -209,39 +180,33 @@ python -m pip install -r requirements-dev.txt
 
 ### 4. Configure DataWebot authentication
 
-The application supports two credential sources.
+The application supports an environment variable and a saved credentials profile.
 
-**Option A: Environment variable**
-
-Windows PowerShell:
+**Windows (PowerShell)**
 
 ```powershell
 $env:DATAWEBOT_API_KEY = "YOUR_DATAWEBOT_API_KEY"
 ```
 
-Linux / macOS:
+**Linux / macOS**
 
 ```bash
 export DATAWEBOT_API_KEY="YOUR_DATAWEBOT_API_KEY"
 ```
 
-**Option B: Saved DataWebot credentials**
-
-Sign in through DataWebot and use the saved credentials profile.
-
-The application reads the API key from:
+Alternatively, credentials can be loaded from:
 
 ```text
 ~/.datawebot/credentials
 ```
 
-The environment variable takes precedence over the saved profile.
+The environment variable takes precedence over the saved credentials.
 
-Never commit API keys, credentials files or other secrets to Git.
+Keep your API key private. Never commit credentials or `.env` files to the repository.
 
 ## Usage
 
-Run a product search:
+Search for a product:
 
 ```bash
 python -m price_agent "Apple AirPods Pro 2"
@@ -253,7 +218,7 @@ Search a specific market:
 python -m price_agent "Sony WH-1000XM5" --country US
 ```
 
-Limit seller lookups:
+Limit the number of products:
 
 ```bash
 python -m price_agent "Sony WH-1000XM5" --country US --limit 3
@@ -265,70 +230,25 @@ Search the Indian market:
 python -m price_agent "Sony WH-1000XM5" --country IN --limit 3
 ```
 
-### Command-line arguments
+### Available arguments
 
 | Argument | Description | Default |
 |---|---|---|
-| `query` | Product search query | Required |
-| `--country` | Two-letter market code | `US` |
-| `--limit` | Maximum search results to open for seller offers | `3` |
+| `query` | Product to search for | Required |
+| `--country` | Two-letter country code | `US` |
+| `--limit` | Maximum number of products for seller lookups | `3` |
 
-The result limit must be between 1 and 10.
-
-Use `--help` to view the available arguments:
+To see the available options:
 
 ```bash
 python -m price_agent --help
 ```
 
-## Understanding the results
-
-Price reports the following information:
-
-| Output | Meaning |
-|---|---|
-| Product title | Product name returned by DataWebot |
-| Lowest seller | Seller with the lowest reported offer total |
-| Product URL | Direct seller product-page link |
-| Rating | Available average product rating |
-| Review count | Number of reviews reported |
-| Star breakdown | Good, neutral and bad review counts |
-| VADER analysis | Sentiment classification of returned review text |
-| Retrieval time | Timestamp supplied by DataWebot |
-| Least price | Lowest offer across the returned products |
-| Best reviewed | Product with the highest adjusted rating |
-
-### Important interpretation rules
-
-**Prices are snapshots, not guaranteed live prices.**
-
-DataWebot returns best-effort results with retrieval timestamps. Prices, shipping charges and availability can change after retrieval.
-
-**Shipping information may be incomplete.**
-
-The current implementation uses the provider's stated total when present. When it calculates a total itself, unknown shipping is treated as zero. Verify shipping charges before making a purchase.
-
-**Currency conversion is not implemented.**
-
-The application does not convert currencies or perform foreign-exchange normalization. Compare products within the same market and verify the displayed currency.
-
-**Product matching requires verification.**
-
-The application relies on the products returned by DataWebot. It does not independently resolve every model, generation, condition or product variant. Check the product title and seller listing before treating two results as equivalent.
-
-**Review sentiment is based on available information.**
-
-The provider's star breakdown takes precedence. Otherwise, only the review text returned by DataWebot is classified with VADER.
-
-**Daily usage allowance applies.**
-
-Product search and seller-offer lookups are subject to DataWebot's MCP account allowance. The application reports the remaining allowance when the provider includes it in its response.
-
-This project does not submit paid extraction Jobs.
-
 ## Testing
 
-Run the automated test suite:
+I included tests for the main application components.
+
+Run the test suite with:
 
 ```bash
 python -m pytest
@@ -336,16 +256,15 @@ python -m pytest
 
 The tests cover:
 
-- DataWebot authentication and credential loading.
-- JSON-RPC request and response handling.
-- HTTP and API error conditions.
-- Product-search orchestration.
-- Seller-offer retrieval and failure handling.
-- Price parsing and seller-total comparison.
-- Rating adjustment and sentiment classification.
-- CLI arguments and report formatting.
+- Authentication and credential loading.
+- JSON-RPC requests and responses.
+- Network and API errors.
+- Product search and seller-offer retrieval.
+- Price parsing and comparison.
+- Rating calculations and sentiment analysis.
+- CLI arguments and terminal output.
 
-Tests use mocked requests and fake clients. They do not require a live DataWebot connection.
+HTTP requests are mocked during testing, and real HTTP requests are blocked. This means the tests can run without connecting to DataWebot or consuming API usage.
 
 ## Project structure
 
@@ -371,77 +290,65 @@ Price/
 │
 ├── requirements.txt
 ├── requirements-dev.txt
-├── .gitignore
 └── README.md
 ```
 
-| Module | Responsibility |
+| File | Responsibility |
 |---|---|
+| `agent.py` | Coordinates the product research workflow |
+| `cli.py` | Handles arguments and terminal output |
+| `datawebot.py` | Handles MCP communication and authentication |
+| `models.py` | Defines product and seller-offer structures |
+| `pick.py` | Handles price parsing and product ranking |
+| `sentiment.py` | Performs review sentiment analysis |
 | `__main__.py` | Application entry point |
-| `cli.py` | Argument parsing and report formatting |
-| `agent.py` | Product research orchestration |
-| `datawebot.py` | MCP client, authentication and error handling |
-| `models.py` | Product and seller-offer dataclasses |
-| `pick.py` | Price parsing, rating adjustment and product selection |
-| `sentiment.py` | VADER review sentiment analysis |
-| `tests/` | Isolated automated tests |
+| `tests/` | Automated tests |
 
-## Scope and limitations
+## Known limitations
 
-The current implementation is intentionally small.
+There are still some things I would like to improve:
 
-**Included**
-- Product discovery through DataWebot MCP.
-- Seller-offer retrieval.
-- Deterministic price comparison.
-- Review-count-weighted rating.
-- Basic review sentiment analysis.
-- Retrieval timestamp reporting.
-- Automated tests with mocked HTTP requests.
+- Missing shipping costs are not reliably distinguished from free shipping.
+- Currency conversion is not implemented.
+- Product variants and conditions are not independently verified.
+- Product matching relies on the results returned by DataWebot.
+- Review sentiment is limited to the information available from the provider.
+- Prices and stock availability can change after retrieval.
+- There is no persistent price history or automatic price-drop monitoring.
+- There is no web interface or database.
+- The application does not submit paid DataWebot extraction Jobs.
 
-**Not included**
-- Direct scraping of individual ecommerce websites.
-- Autonomous browser automation.
-- LLM-based product recommendations.
-- Advanced product-variant resolution or entity matching.
-- Currency conversion.
-- Verification of final checkout costs.
-- Persistent price history or scheduled price monitoring.
-- Price-drop alerts.
-- DataWebot extraction Jobs.
-- A web frontend or database.
+Price currently focuses on product research and comparison rather than purchasing or independently scraping ecommerce websites.
 
-DataWebot is the application's external ecommerce data source. Price does not independently crawl or verify seller websites.
+## What I would like to improve next
 
-## Potential improvements
+Some areas I would like to work on:
 
-Areas for further engineering work:
+- Better handling of missing shipping and currency information.
+- More reliable product and variant matching.
+- Stronger validation of external API responses.
+- More test cases using realistic provider responses.
+- Automated testing through GitHub Actions.
+- Historical price tracking and price-drop notifications.
+- A web interface for comparing products.
 
-- Treat unknown shipping costs as unknown instead of zero.
-- Add currency-aware monetary comparisons using decimal arithmetic.
-- Preserve product identifiers, condition and variant information.
-- Introduce stronger validation for external API responses.
-- Improve product matching and duplicate detection.
-- Expand automated tests with realistic provider response fixtures.
-- Add continuous integration and code-quality checks.
-- Explore persistent price observations and historical comparisons.
+## Why I built this
 
-## Why this project
+I wanted to build something practical with MCP and understand how an external data service could fit into a working application.
 
-I built Price to explore the engineering involved in connecting an application to an ecommerce MCP service and turning externally retrieved product data into an explainable comparison.
+Price gave me an opportunity to work with an actual ecommerce data source, build a custom integration, process the returned information and implement my own comparison logic.
 
-The focus is on the boundary between tool integration and useful application behaviour: retrieving structured information, handling incomplete responses, comparing seller offers, applying transparent ranking rules and testing the integration without relying on live network calls.
+It also brought up some interesting engineering problems: dealing with incomplete data, parsing different price formats, handling API failures and testing an external integration without depending on live requests.
 
-The project also provides a practical way to examine how ecommerce data can be consumed by Python applications and AI-agent workflows.
+The project is still evolving, and I see plenty of room to make the comparisons more accurate and the application more useful.
 
 ## References
 
 - [DataWebot – Official Website](https://datawebot.com/)
 - [DataWebot – MCP Documentation](https://datawebot.com/docs/agents)
 - [DataWebot – Developer Documentation](https://datawebot.com/docs)
-- [DataWebot – MCP Server](https://datawebot.com/mcp)
 - [DataWebot – Careers](https://datawebot.com/careers)
 
 ---
 
-**Built with Python. Connected through DataWebot MCP. Designed around explainable product research.**
+**Built with Python · Powered by DataWebot MCP**
