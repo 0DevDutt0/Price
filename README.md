@@ -100,3 +100,4 @@ cannot reach datawebot or spend the daily allowance.
 - **Reading product pages directly.** This repo doesn't read shop pages. datawebot is the only data source.
 - **Jobs.** They cost credits. The agent doesn't submit them.
 - **Product links as input.** Only search terms are accepted for now.
+- 
